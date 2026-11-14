@@ -125,15 +125,6 @@ def main():
         target = RESOURCES / path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-    for font in ['975MaruSC-Medium-CqkJPt5f.woff2', '975MaruSC-Bold-iviPgHHc.woff2']:
-        path = 'assets/字体/' + font
-        entry = next(entry for entry in ui_manifest if entry['path'] == path)
-        source = LIBRARY / path
-        if hashlib.sha256(source.read_bytes()).hexdigest() != entry['sha256']:
-            raise ValueError('字体哈希不匹配')
-        target = RESOURCES / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
     for filename in ['logo.png', 'texture.png', 'close.png', 'passport-button.png', 'uid-button.png']:
         path = 'assets/界面/原版/login-select/' + filename
         entry = next(entry for entry in ui_manifest if entry['path'] == path)

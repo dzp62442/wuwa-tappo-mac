@@ -30,6 +30,22 @@ def prepare(resources):
     staged = original
     patches = []
 
+    # A downloaded CJK font can leave a fresh sfnt buffer in WebKit's GPU
+    # process on successive redraws. Keep the release's family aliases so the
+    # main window, settings and login views all resolve to the same local faces.
+    stylesheet = target / 'assets/index-BbF1ZWW_.css'
+    css = stylesheet.read_text()
+    for filename, face in [('975MaruSC-Medium-CqkJPt5f.woff2', 'PingFangSC-Medium'),
+                           ('975MaruSC-Bold-iviPgHHc.woff2', 'PingFangSC-Semibold')]:
+        before = f'url(./{filename}) format("woff2")'
+        after = f'local("{face}")'
+        if css.count(before) != 1:
+            raise ValueError(f'Original font source changed: {filename}')
+        css = css.replace(before, after)
+        patches.append({'file': stylesheet.name, 'reason': 'Resolve Simplified Chinese fonts locally on macOS',
+                        'before': before, 'after': after})
+    stylesheet.write_text(css)
+
     def replace(before, after, reason):
         nonlocal staged
         if staged.count(before) != 1:

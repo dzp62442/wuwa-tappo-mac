@@ -23,6 +23,13 @@ if executable.exists():
             digest.update(chunk)
     assert digest.hexdigest() == recovery['sourceSha256'], 'Archived Windows source executable changed'
 allowed = {'index.html', 'assets/index-CM6qA69G.js', 'assets/index-BFg5ADH5.js', 'assets/index-BIzzuO5B.js', 'assets/login-6yi5hIzI.js'}
+stylesheet = 'assets/index-BbF1ZWW_.css'
+allowed.add(stylesheet)
+for css_path in [STAGED / stylesheet, STAGED.parent / 'panel/panel.css']:
+    css = css_path.read_text()
+    assert not re.search(r'url\([^)]*975MaruSC', css), f'Embedded CN font still active: {css_path.name}'
+    for face in ['PingFangSC-Medium', 'PingFangSC-Semibold']:
+        assert css.count(f'local("{face}")') == 1, f'Missing local font: {face}'
 changed = []
 for entry in manifest['sourceFiles']:
     path = entry['path']

@@ -13,7 +13,7 @@
 
 让共鸣者待在 Mac 桌面上，跟着键盘、鼠标和手柄的操作拍桌子。保留 Windows CN 版的界面，支持登录、换装、开箱、合成、兑换和好友联机。
 
-当前源码版本为 **1.0.4 · build 11**，与所用 Windows CN 前端版本一致。
+当前源码版本为 **1.0.4 · build 12（本地修复版）**，与所用 Windows CN 前端版本一致。
 
 <p align="center">
   <img src="docs/images/backpack.png" alt="Mac 上的背包界面" width="900">
