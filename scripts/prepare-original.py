@@ -86,7 +86,16 @@ def prepare(resources):
             'Resolve archived assets by explicit catalog mapping before original local fallback')
     # Expose original state and router only for native integration checks, no duplicated Vue implementation.
     replace('bootstrap();export{',
-            'window.__WUWA_ORIGINAL__={router,globalStore,loadDesktopCatSettings,persistDesktopCatSettings,showToast};bootstrap();export{',
+            '''window.__WUWA_ORIGINAL__={router,globalStore,loadDesktopCatSettings,persistDesktopCatSettings,showToast};
+            async function startMacFrontend(){
+                if(window.__ORIGINAL_NATIVE_LABEL__==="main"){
+                    let position=null;
+                    try{position=JSON.parse(localStorage.getItem("wuwatappo-main-window-outer-pos"))}catch{}
+                    await window.__TAURI_INTERNALS__.invoke("restore_pet_display",{position});
+                }
+                await bootstrap();
+            }
+            startMacFrontend();export{''',
             'Expose actual original router/store for integration verification')
     # Preserve the release's synchronous token API, backed by the native Keychain.
     cookie_start = staged.index('getCookie=e=>{const t=`kuro_${e}=`')
@@ -172,6 +181,23 @@ def prepare(resources):
     panel_file.write_text(panel_text.replace(input_before, input_after))
     patches.append({'file': panel_file.name, 'reason': 'Echo room input locally before asynchronous WK snapshot acknowledgement',
                     'before': input_before, 'after': input_after})
+    # Permit a deliberate switch to the sole remaining screen after unplugging the selected one.
+    switch_file = target / 'assets/switchDisplayMonitor-Dqub4lRn.js'
+    for path, before, after in [
+        (switch_file, 'if(d.length<=1)return w("DISPLAY","switch_skipped"',
+         'if(!d.length||(d.length===1&&!await u("is_pet_display_disconnected")))return w("DISPLAY","switch_skipped"'),
+        (panel_file, '$e.value=S.length,Ae.value=await ua(S)',
+         '$e.value=S.length;const detached=await gs("is_pet_display_disconnected");Ae.value=detached?"—":await ua(S)'),
+        (panel_file, '$e.value>1?(l(),y("button",{key:0,type:"button",class:"setting-btn btn-screen"',
+         '($e.value>1||($e.value===1&&Ae.value==="—"))?(l(),y("button",{key:0,type:"button",class:"setting-btn btn-screen"'),
+        (panel_file, 'B.value.length<=1||await da()', 'await da()'),
+    ]:
+        source_text = path.read_text()
+        if source_text.count(before) != 1:
+            raise ValueError(f'Display switch adapter drift: {before}')
+        path.write_text(source_text.replace(before, after))
+        patches.append({'file': path.name, 'reason': 'Allow explicit selection after display disconnect',
+                        'before': before, 'after': after})
     # Reuse the version row and status messages with the macOS Release check.
     panel_text = panel_file.read_text()
     enabled_before = 'X=on(),se=b(!1)'

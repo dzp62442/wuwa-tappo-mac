@@ -1,7 +1,16 @@
 import AppKit
 import WebKit
+import ColorSync
 import ServiceManagement
 import Network
+
+private extension NSScreen {
+    var petDisplayUUID: String? {
+        guard let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
+              let uuid = CGDisplayCreateUUIDFromDisplayID(number.uint32Value)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String
+    }
+}
 
 private final class OriginalWindow: NSWindow {
     var interactive = true
@@ -53,6 +62,9 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
     }
     private var ready = Set<String>()
     private var pointerTimer: Timer?
+    private var preferredDisplayUUID = UserDefaults.standard.string(forKey: "petDisplayUUID")
+    private var displayReady = false
+    private var petWindowRequested = true
     private var mainHitRects: [[String: Any]] = []
     private var panelOpen = false
     private var deferredPanelTab: String?
@@ -136,7 +148,12 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         }
         _ = create(label: "main", route: "/")
         if systemGameModeFollowing { systemGameMode.start() }
-        windows["main"]?.orderFrontRegardless()
+        NotificationCenter.default.addObserver(self, selector: #selector(displayConfigurationChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(restorePetWindow),
+            name: NSWindow.didChangeScreenNotification, object: windows["main"])
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(displayConfigurationChanged),
+            name: NSWorkspace.didWakeNotification, object: nil)
         buildApplicationMenu()
         buildMenu()
         if let tab = deferredPanelTab {
@@ -192,7 +209,7 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         let view = OriginalWebView(frame: .zero, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
         view.navigationDelegate = self
-        let screen = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let screen = (label == "main" ? chosenDisplay ?? NSScreen.screens.first : NSScreen.main)?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let size = label == "main" ? screen.size : (label == "login" ? NSSize(width: 500, height: 378) : NSSize(width: 1100, height: 756))
         let rect = NSRect(origin: label == "main" ? screen.origin : .zero, size: size)
         let window: NSWindow
@@ -416,9 +433,13 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         case "plugin:window|theme": return "light"
         case "plugin:window|title": return window.title
         case "plugin:window|set_title": window.title = args["value"] as? String ?? window.title; return null
-        case "plugin:window|show", "plugin:webview|webview_show": window.orderFrontRegardless(); return null
-        case "plugin:window|hide", "plugin:webview|webview_hide": window.orderOut(nil); return null
-        case "plugin:window|close", "plugin:window|destroy", "plugin:webview|webview_close": window.orderOut(nil); return null
+        case "plugin:window|show", "plugin:webview|webview_show":
+            if label == "main" { petWindowRequested = true; restorePetWindow() }
+            else { window.orderFrontRegardless() }
+            return null
+        case "plugin:window|hide", "plugin:webview|webview_hide", "plugin:window|close", "plugin:window|destroy", "plugin:webview|webview_close":
+            if label == "main" { petWindowRequested = false }
+            window.orderOut(nil); return null
         case "plugin:window|set_focus", "plugin:webview|set_webview_focus": window.makeKeyAndOrderFront(nil); return null
         case "plugin:window|center": window.center(); return null
         case "plugin:window|start_dragging":
@@ -574,16 +595,36 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         case "set_shortcut_capture": shortcutCapture = args["active"] as? Bool ?? false; return null
         case "set_main_skip_taskbar":
             NSApp.setActivationPolicy(args["skip"] as? Bool == true ? .accessory : .regular); return null
+        case "restore_pet_display":
+            guard caller == "main" else { throw CocoaError(.coderInvalidValue) }
+            if preferredDisplayUUID == nil {
+                // Builds before 13 saved the top-left point in WebKit's coordinates.
+                let oldPosition = args["position"] as? [String: Double]
+                let previous = NSScreen.screens.first { screen in
+                    let origin = screenPoint(NSPoint(x: screen.frame.minX, y: screen.frame.maxY))
+                    return oldPosition?["x"] == origin.x && oldPosition?["y"] == origin.y
+                }
+                if let uuid = (previous ?? NSScreen.screens.first)?.petDisplayUUID { rememberDisplay(uuid) }
+            }
+            displayReady = true
+            restorePetWindow()
+            return null
+        case "is_pet_display_disconnected":
+            return preferredDisplayUUID != nil && chosenDisplay == nil
         case "set_main_window_fullscreen_shell":
-            if let main = windows["main"], let screen = main.screen ?? NSScreen.main { main.setFrame(screen.frame, display: true) }
+            restorePetWindow()
             return null
         case "set_main_window_monitor_bounds":
             let payload = args["payload"] as? [String: Any] ?? [:]
-            if let x = payload["x"] as? Double, let y = payload["y"] as? Double,
-               let w = payload["width"] as? Double, let h = payload["height"] as? Double {
-                let top = NSScreen.screens.first?.frame.maxY ?? 0
-                windows["main"]?.setFrame(NSRect(x: x, y: top-y-h, width: w, height: h), display: true)
-            }; return null
+            guard let x = payload["x"] as? Double, let y = payload["y"] as? Double,
+                  let w = payload["width"] as? Double, let h = payload["height"] as? Double,
+                  let top = NSScreen.screens.first?.frame.maxY,
+                  let target = NSScreen.screens.first(where: { $0.frame == NSRect(x: x, y: top-y-h, width: w, height: h) }),
+                  let uuid = target.petDisplayUUID else { throw CocoaError(.coderInvalidValue) }
+            // This bridge command is issued only by the original manual switch flow.
+            rememberDisplay(uuid)
+            restorePetWindow()
+            return null
         case "popup_main_dock_context_menu":
             if let window = windows["main"], let view = views["main"] {
                 let point = view.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
@@ -648,6 +689,31 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         }
     }
 
+    private var chosenDisplay: NSScreen? {
+        guard let uuid = preferredDisplayUUID else { return nil }
+        return NSScreen.screens.first { $0.petDisplayUUID == uuid }
+    }
+
+    private func rememberDisplay(_ uuid: String) {
+        preferredDisplayUUID = uuid
+        UserDefaults.standard.set(uuid, forKey: "petDisplayUUID")
+    }
+
+    @objc private func restorePetWindow() {
+        guard displayReady, let window = windows["main"] else { return }
+        guard let screen = chosenDisplay ?? (preferredDisplayUUID == nil ? NSScreen.screens.first : nil) else {
+            if window.isVisible { window.orderOut(nil) }
+            return
+        }
+        if window.frame != screen.frame { window.setFrame(screen.frame, display: true) }
+        if petWindowRequested && !maintenanceActive && !window.isVisible { window.orderFrontRegardless() }
+    }
+
+    @objc private func displayConfigurationChanged() {
+        restorePetWindow()
+        emit("cat-display-switched", target: "panel")
+    }
+
     private func monitor(_ screen: NSScreen) -> [String: Any] {
         let point = screenPoint(NSPoint(x: screen.frame.minX, y: screen.frame.maxY))
         let workPoint = screenPoint(NSPoint(x: screen.visibleFrame.minX, y: screen.visibleFrame.maxY))
@@ -678,12 +744,14 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         guard !maintenanceActive else { return }
         emit(down ? "key-press" : "key-release", String(code), target: "main")
         if down && !repeated && !shortcutCapture {
+            // Missing key mappings and cleared bindings must never match one another.
+            guard let shortcutKey = virtualKey(code) else { return }
             let bindings = flags["shortcuts"] as? [String: [String: Int]] ??
                 ["togglePet": ["key": 120, "modifiers": 0], "gameMode": ["key": 119, "modifiers": 0], "switchScreen": ["key": 121, "modifiers": 0]]
             let cg = CGEventFlags(rawValue: rawFlags)
             let modifiers = (cg.contains(.maskAlternate) ? 1 : 0) | (cg.contains(.maskControl) ? 2 : 0) |
                             (cg.contains(.maskShift) ? 4 : 0) | (cg.contains(.maskCommand) ? 8 : 0)
-            for (action, binding) in bindings where binding["key"] == virtualKey(code) && binding["modifiers"] == modifiers {
+            for (action, binding) in bindings where binding["key"] == shortcutKey && binding["modifiers"] == modifiers {
                 emit("app-shortcut", action, target: "main")
             }
         }
@@ -713,14 +781,14 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         views["main"]?.evaluateJavaScript("window.__MACOS_RESET_INPUT__?.()")
     }
 
-    private func virtualKey(_ code: Int) -> Int {
+    private func virtualKey(_ code: Int) -> Int? {
         let keys: [Int: Int] = [0:65,1:83,2:68,3:70,4:72,5:71,6:90,7:88,8:67,9:86,11:66,12:81,13:87,14:69,15:82,16:89,17:84,
             18:49,19:50,20:51,21:52,22:54,23:53,24:187,25:57,26:55,27:189,28:56,29:48,30:221,31:79,32:85,33:219,34:73,35:80,
             36:13,37:76,38:74,39:222,40:75,41:186,42:220,43:188,44:191,45:78,46:77,47:190,48:9,49:32,50:192,51:8,53:27,
             122:112,120:113,99:114,118:115,96:116,97:117,98:118,100:119,101:120,109:121,103:122,111:123,
             105:124,107:125,113:126,106:127,64:128,79:129,80:130,90:131,
             123:37,124:39,125:40,126:38,115:36,119:35,116:33,121:34,117:46]
-        return keys[code] ?? 0
+        return keys[code]
     }
 
     private func buildMenu() {
@@ -984,6 +1052,8 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
             try require(invalidPointRejected, "Missing display coordinates were accepted")
             verified.append("monitor lookup by point, primary and current display")
             if let panel = windows["panel"] {
+                panel.makeKeyAndOrderFront(nil)
+                try await settle()
                 let centre = NSPoint(x: panel.frame.midX, y: panel.frame.midY)
                 let location = CGPoint(x: centre.x, y: (NSScreen.screens.first?.frame.maxY ?? 0)-centre.y)
                 let initial = try await script("return window.__WUWA_ORIGINAL__.globalStore.localClickCount") as! Int
@@ -1042,9 +1112,76 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
                 const m = await import('wuwa://app/assets/index-CM6qA69G.js');
                 return samples.map(s => m.c2(new KeyboardEvent('keydown',{code:s.code,key:s.key,ctrlKey:true})).key);
                 """, arguments: ["samples": samples]) as? [Int] ?? []
-            try require(recorded == samples.map { virtualKey($0["native"] as! Int) }, "Native shortcuts differ from the original key recorder")
+            try require(recorded.count == samples.count && recorded == samples.compactMap { virtualKey($0["native"] as! Int) }, "Native shortcuts differ from the original key recorder")
             keySamples = samples.count
             var bindings = originalShortcuts as? [String: Any] ?? [:]
+            // Exercise the actual key dispatch, including left/right modifier events with
+            // and without flags. No disabled action should ever reach the renderer.
+            let cleared = ["key": 0, "modifiers": 0]
+            for action in ["togglePet", "gameMode", "switchScreen"] { bindings[action] = cleared }
+            _ = try invoke("set_app_shortcuts", ["config": bindings], "main")
+            try require(!systemGameModeFollowing, "Run shortcut audit with manual game mode")
+            _ = try await script("""
+                window.auditShortcutEvents = [];
+                window.auditStopShortcuts = await (await import('wuwa://app/assets/index-CM6qA69G.js')).az("app-shortcut",
+                    event => window.auditShortcutEvents.push(event.payload));
+                """)
+            for code in [54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 76, 83, 10] {
+                for modifiers: CGEventFlags in [[], .maskShift, .maskControl, .maskAlternate, .maskCommand, .maskAlphaShift, .maskSecondaryFn] {
+                    key(code, down: true, flags: modifiers.rawValue)
+                    key(code, down: false, flags: modifiers.rawValue)
+                }
+            }
+            try await settle()
+            let triggered = try await script("return window.auditShortcutEvents") as? [String]
+            try require(triggered == [], "An unbound shortcut received a modifier or unmapped key")
+            bindings["gameMode"] = ["key": 119, "modifiers": 0]
+            bindings["switchScreen"] = ["key": 121, "modifiers": 0]
+            _ = try invoke("set_app_shortcuts", ["config": bindings], "main")
+            let originalMode = try await settings()["gameMode"] as? Bool
+            func press(_ code: Int) {
+                key(code, down: true); key(code, down: false)
+            }
+            press(100) // F8
+            try await settle()
+            let changedMode = try await settings()["gameMode"] as? Bool
+            try require(originalMode != nil && changedMode != originalMode, "Bound Game Mode key did not toggle the manual mode")
+            // The original Game Mode action debounces presses for 280 ms.
+            try await Task.sleep(nanoseconds: 350_000_000)
+            press(100)
+            try await settle()
+            try require(try await settings()["gameMode"] as? Bool == originalMode, "Bound Game Mode key did not restore manual mode")
+            if NSScreen.screens.count == 2, let window = windows["main"], let previous = chosenDisplay,
+               let panel = views["panel"] {
+                let click: Any = try await withCheckedThrowingContinuation { continuation in
+                    panel.callAsyncJavaScript("const button=document.querySelector('.btn-screen'); button?.click(); return !!button",
+                        arguments: [:], in: nil, in: .page) { continuation.resume(with: $0) }
+                }
+                try require(click as? Bool == true, "Missing switch display settings button")
+                func waitForDisplay(_ test: () -> Bool) async throws {
+                    for _ in 0..<30 {
+                        if test() { return }
+                        try await settle()
+                    }
+                }
+                try await waitForDisplay { self.chosenDisplay?.petDisplayUUID != previous.petDisplayUUID }
+                guard let selected = chosenDisplay else { throw CocoaError(.coderValueNotFound) }
+                try require(selected.petDisplayUUID != previous.petDisplayUUID && window.frame == selected.frame,
+                            "Settings did not switch the physical display")
+                // Simulate AppKit changing the window's frame. The selection must survive.
+                window.setFrame(previous.frame, display: true)
+                displayConfigurationChanged()
+                try require(window.frame == selected.frame && UserDefaults.standard.string(forKey: "petDisplayUUID") == selected.petDisplayUUID,
+                            "Display reconfiguration replaced the selected display")
+                try await Task.sleep(nanoseconds: 2_500_000_000)
+                press(109) // F10
+                try await waitForDisplay { self.chosenDisplay?.petDisplayUUID == previous.petDisplayUUID }
+                try require(window.frame == previous.frame && chosenDisplay?.petDisplayUUID == previous.petDisplayUUID,
+                            "Bound shortcut did not switch the physical display back")
+                verified.append("settings and F10 switch physical displays; display changes retain selection")
+            }
+            _ = try await script("window.auditStopShortcuts(); delete window.auditStopShortcuts; delete window.auditShortcutEvents")
+            verified.append("disabled bindings ignore left/right modifiers, Fn, Caps Lock and unmapped keys; manual game shortcut works")
             bindings["togglePet"] = ["key": 65, "modifiers": 3]
             _ = try invoke("set_app_shortcuts", ["config": bindings], "main")
             shortcutCapture = true
@@ -1322,6 +1459,9 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
     }
 
     func stop() {
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        displayReady = false
         systemGameMode.stop()
         networkMonitor.cancel()
         socketBridge?.stop()
