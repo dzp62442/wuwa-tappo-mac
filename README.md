@@ -40,18 +40,18 @@
 
 ## 从源码构建
 
-需要 Xcode Command Line Tools、Python 3.9+ 和 Git。将应用与素材仓库放在同一父目录：
+需要 Xcode Command Line Tools、Python 3.9+ 和 Git。素材以 Git 子模块放在 `vendor/wuwa-tappo-assets/`。递归克隆会一并检出项目锁定的素材版本。
 
 ```sh
-git clone https://github.com/lliooly/wuwa-tappo-assets.git
-git -C wuwa-tappo-assets checkout 478ae2fdf4f1308189df87a5b249cd0deb1dfb64
-git clone https://github.com/lliooly/wuwa-tappo-mac.git
+git clone --recurse-submodules https://github.com/dzp62442/wuwa-tappo-mac.git
 cd wuwa-tappo-mac
 python3 scripts/build-macos.py
 open 'dist/Wuwa Tappo.app'
 ```
 
-产物为 `dist/Wuwa Tappo.app` 和 `dist/Wuwa-Tappo-mac-arm64.zip`。运行测试另需 Node.js 22+，无需 `npm install`。
+已有工作副本在普通克隆后，或拉取了更新素材版本的提交后，可在项目根目录运行 `git submodule update --init --recursive`，再执行上面的构建命令。
+
+所需素材已打入应用包，日常运行无需保留源码或子模块。产物为 `dist/Wuwa Tappo.app` 和 `dist/Wuwa-Tappo-mac-arm64.zip`。运行测试另需 Node.js 22+，无需 `npm install`。
 
 目录结构、测试、签名和调试命令见 [开发指南](docs/开发指南.md)。选用素材前请阅读素材库的 [使用指南](https://github.com/lliooly/wuwa-tappo-assets/blob/478ae2fdf4f1308189df87a5b249cd0deb1dfb64/docs/使用指南.md)。
 

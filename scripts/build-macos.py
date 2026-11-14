@@ -10,7 +10,7 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-LIBRARY = ROOT.parent / 'wuwa-tappo-assets'
+LIBRARY = ROOT / 'vendor/wuwa-tappo-assets'
 APP = ROOT / 'dist/Wuwa Tappo.app'
 CONTENTS = APP / 'Contents'
 RESOURCES = CONTENTS / 'Resources'
@@ -22,13 +22,16 @@ def run(*args):
 
 def main():
     package = json.loads((ROOT / 'package.json').read_text())
+    catalog_path = LIBRARY / 'data/catalog.json'
+    if not catalog_path.is_file():
+        raise SystemExit('缺少素材子模块，请在项目根目录运行 git submodule update --init --recursive')
+    catalog = json.loads(catalog_path.read_text())
     # Only clean generated bundle content, never source or the asset library.
     if APP.exists():
         shutil.rmtree(APP)
     (CONTENTS / 'MacOS').mkdir(parents=True)
     RESOURCES.mkdir()
     shutil.copy2(ROOT / 'assets/macos/menu-bar-template.png', RESOURCES / 'menu-bar-template.png')
-    catalog = json.loads((LIBRARY / 'data/catalog.json').read_text())
 
     def find(kind, name):
         return next(item for item in catalog['items']

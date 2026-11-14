@@ -1,0 +1,3 @@
+[submodule "vendor/wuwa-tappo-assets"]
+	path = vendor/wuwa-tappo-assets
+	url = https://github.com/lliooly/wuwa-tappo-assets.git

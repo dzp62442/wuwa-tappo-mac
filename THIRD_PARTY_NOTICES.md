@@ -6,7 +6,7 @@
 | --- | --- |
 | `native/`、`original-adapter/`、`src/`、`panel/`、`preview/`、脚本、测试及原创文档 | 本项目自行编写的适配与工具代码适用 MIT；不包括其中引用或嵌入的上游内容。 |
 | `recovered/wuwa-tappo-cn-1.0.3/` | 从官方 CN 1.0.3 发行文件恢复的前端、SDK 与安装器资料，保留原始权利；不是官方开源源码，也不由本项目授予再分发权。 |
-| `assets/`、相邻 `wuwa-tappo-assets` 中的游戏图片与数据 | 官方客户端及公开接口的归档；按用途保留符号链接、来源与哈希，不授予新的开放许可。 |
+| `assets/`、素材子模块 `vendor/wuwa-tappo-assets/` 中的游戏图片与数据 | 官方客户端及公开接口的归档；按用途保留符号链接、来源与哈希，不授予新的开放许可。 |
 | `docs/images/` | 现有发行图标与本项目真实运行截图；包含上游美术及界面，不属于原创代码的 MIT 授权。 |
 | 第三方字体与打包进原版前端的库 | 适用各自原始许可与版权声明，见下文。 |
 
@@ -18,7 +18,7 @@
 
 ## 字体
 
-保留相邻素材库的 [字体许可核对](https://github.com/lliooly/wuwa-tappo-assets/blob/478ae2fdf4f1308189df87a5b249cd0deb1dfb64/docs/字体授权.md) 及 [字体原始名称记录](https://github.com/lliooly/wuwa-tappo-assets/blob/478ae2fdf4f1308189df87a5b249cd0deb1dfb64/data/来源快照/font-name-records.json)。
+保留素材子模块的 [字体许可核对](https://github.com/lliooly/wuwa-tappo-assets/blob/478ae2fdf4f1308189df87a5b249cd0deb1dfb64/docs/字体授权.md) 及 [字体原始名称记录](https://github.com/lliooly/wuwa-tappo-assets/blob/478ae2fdf4f1308189df87a5b249cd0deb1dfb64/data/来源快照/font-name-records.json)。
 
 - `975MaruSC`、`GenSenRounded`／`GenSenRoundedJP`、`Prompt`：原字体字段注明 SIL OFL 1.1。
 - `NanumGothic`：原客户端声明为 SIL OFL 1.1，具体文件版权信息仍须一并保留。

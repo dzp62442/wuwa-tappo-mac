@@ -306,7 +306,7 @@ def prepare(resources):
     hosts['url'] = {lang: f'wuwa://app/public/dict-{lang}.json' for lang in hosts['url']}
     (public / 'app/json-host').mkdir(parents=True)
     (public / 'app/json-host/dict_host.json').write_text(json.dumps(hosts))
-    library = ROOT.parent / 'wuwa-tappo-assets'
+    library = ROOT / 'vendor/wuwa-tappo-assets'
     catalog = json.loads((library / 'data/catalog.json').read_text())
     asset_map = {}
     folders = {'character_skin': 'character', 'accessory': 'accessory', 'emote': 'emote'}

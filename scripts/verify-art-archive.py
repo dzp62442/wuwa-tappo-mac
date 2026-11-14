@@ -197,7 +197,7 @@ def main() -> None:
     if len(aliases) != len(recorded):
         raise ValueError("Incomplete named paths")
     permitted_asset_roots = [(PROJECT / "assets").resolve(),
-                             (PROJECT.parent / "wuwa-tappo-assets/assets").resolve()]
+                             (PROJECT / "vendor/wuwa-tappo-assets/assets").resolve()]
     for alias, target in aliases.items():
         path = (remote / target).resolve(strict=True)
         if not path.is_file() or not any(path.is_relative_to(root) for root in permitted_asset_roots):

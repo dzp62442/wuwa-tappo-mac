@@ -121,7 +121,7 @@ test('recovery clears stuck keys and disposal prevents future activity', () => {
   assert.deepEqual(pet.state, state);
 });
 
-const assetBase = new URL('../../wuwa-tappo-assets/', import.meta.url);
+const assetBase = new URL('../vendor/wuwa-tappo-assets/', import.meta.url);
 const catalog = JSON.parse(readFileSync(new URL('data/catalog.json', assetBase), 'utf8'));
 test('real catalog resolves every character layer and accessory without guessing paths', () => {
   for (const character of catalog.items.filter(item => item.type === 'character_skin')) {

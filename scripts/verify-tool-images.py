@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-LIBRARY = Path(__file__).resolve().parents[2] / 'wuwa-tappo-assets'
+LIBRARY = Path(__file__).resolve().parents[1] / 'vendor/wuwa-tappo-assets'
 
 
 def main():
