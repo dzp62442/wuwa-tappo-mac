@@ -181,15 +181,17 @@ def prepare(resources):
     panel_file.write_text(panel_text.replace(input_before, input_after))
     patches.append({'file': panel_file.name, 'reason': 'Echo room input locally before asynchronous WK snapshot acknowledgement',
                     'before': input_before, 'after': input_after})
-    # Permit a deliberate switch to the sole remaining screen after unplugging the selected one.
+    # Show the actual screen number during fallback. With only one screen, keep the
+    # switch button available so the user can explicitly make that screen the preference.
     switch_file = target / 'assets/switchDisplayMonitor-Dqub4lRn.js'
     for path, before, after in [
         (switch_file, 'if(d.length<=1)return w("DISPLAY","switch_skipped"',
          'if(!d.length||(d.length===1&&!await u("is_pet_display_disconnected")))return w("DISPLAY","switch_skipped"'),
+        (panel_file, '$e=b(1),Ae=b(1)', '$e=b(1),canAdoptScreen=b(!1),Ae=b(1)'),
         (panel_file, '$e.value=S.length,Ae.value=await ua(S)',
-         '$e.value=S.length;const detached=await gs("is_pet_display_disconnected");Ae.value=detached?"—":await ua(S)'),
+         '$e.value=S.length,Ae.value=await ua(S),canAdoptScreen.value=S.length===1&&await gs("is_pet_display_disconnected")'),
         (panel_file, '$e.value>1?(l(),y("button",{key:0,type:"button",class:"setting-btn btn-screen"',
-         '($e.value>1||($e.value===1&&Ae.value==="—"))?(l(),y("button",{key:0,type:"button",class:"setting-btn btn-screen"'),
+         '($e.value>1||($e.value===1&&canAdoptScreen.value))?(l(),y("button",{key:0,type:"button",class:"setting-btn btn-screen"'),
         (panel_file, 'B.value.length<=1||await da()', 'await da()'),
     ]:
         source_text = path.read_text()

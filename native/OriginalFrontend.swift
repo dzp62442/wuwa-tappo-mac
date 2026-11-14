@@ -209,7 +209,7 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         let view = OriginalWebView(frame: .zero, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
         view.navigationDelegate = self
-        let screen = (label == "main" ? chosenDisplay ?? NSScreen.screens.first : NSScreen.main)?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let screen = (label == "main" ? petDisplay(in: NSScreen.screens) : NSScreen.main)?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let size = label == "main" ? screen.size : (label == "login" ? NSSize(width: 500, height: 378) : NSSize(width: 1100, height: 756))
         let rect = NSRect(origin: label == "main" ? screen.origin : .zero, size: size)
         let window: NSWindow
@@ -553,10 +553,10 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
             flags["shortcuts"] = config; UserDefaults.standard.set(config, forKey: "originalShortcuts")
             emit("app-shortcuts-changed", config); return null
         case "get_main_desktop_safe_area":
-            let screen = windows["main"]?.screen ?? NSScreen.main!
-            let fullscreen = foregroundFullscreen(on: screen)
+            let screen = petDisplay(in: NSScreen.screens)
+            let fullscreen = screen.map(foregroundFullscreen(on:)) ?? false
             return ["insets": safeInsets(screen), "autoHideEdge": null, "foregroundFullscreen": fullscreen, "foregroundApplicationFullscreen": fullscreen]
-        case "get_main_taskbar_insets": return safeInsets(windows["main"]?.screen ?? NSScreen.main!)
+        case "get_main_taskbar_insets": return safeInsets(petDisplay(in: NSScreen.screens))
         case "get_boot_diagnostics": return ["system": ["platform": "macOS"], "runtime": ["webview_version": "System WebKit"]]
         case "set_main_hit_region":
             let payload = args["payload"] as? [String: Any] ?? [:]
@@ -610,7 +610,8 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
             restorePetWindow()
             return null
         case "is_pet_display_disconnected":
-            return preferredDisplayUUID != nil && chosenDisplay == nil
+            guard let uuid = preferredDisplayUUID else { return false }
+            return !NSScreen.screens.contains { $0.petDisplayUUID == uuid }
         case "set_main_window_fullscreen_shell":
             restorePetWindow()
             return null
@@ -689,9 +690,12 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         }
     }
 
-    private var chosenDisplay: NSScreen? {
-        guard let uuid = preferredDisplayUUID else { return nil }
-        return NSScreen.screens.first { $0.petDisplayUUID == uuid }
+    private func petDisplay(in screens: [NSScreen]) -> NSScreen? {
+        if let uuid = preferredDisplayUUID, let preferred = screens.first(where: { $0.petDisplayUUID == uuid }) {
+            return preferred
+        }
+        // The settings page numbers the primary screen first. Keep the saved UUID for reconnection.
+        return screens.first
     }
 
     private func rememberDisplay(_ uuid: String) {
@@ -701,7 +705,7 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
 
     @objc private func restorePetWindow() {
         guard displayReady, let window = windows["main"] else { return }
-        guard let screen = chosenDisplay ?? (preferredDisplayUUID == nil ? NSScreen.screens.first : nil) else {
+        guard let screen = petDisplay(in: NSScreen.screens) else {
             if window.isVisible { window.orderOut(nil) }
             return
         }
@@ -1151,7 +1155,36 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
             press(100)
             try await settle()
             try require(try await settings()["gameMode"] as? Bool == originalMode, "Bound Game Mode key did not restore manual mode")
-            if NSScreen.screens.count == 2, let window = windows["main"], let previous = chosenDisplay,
+            let screens = NSScreen.screens
+            if let first = screens.first, let window = windows["main"] {
+                let saved = preferredDisplayUUID
+                let stored = UserDefaults.standard.string(forKey: "petDisplayUUID")
+                let requested = petWindowRequested
+                defer {
+                    preferredDisplayUUID = saved
+                    UserDefaults.standard.set(stored, forKey: "petDisplayUUID")
+                    petWindowRequested = requested
+                    restorePetWindow()
+                }
+                let missing = UUID().uuidString
+                rememberDisplay(missing)
+                _ = try invoke("plugin:window|show", [:], "main")
+                displayConfigurationChanged()
+                try require(window.isVisible && window.frame == first.frame, "Missing display did not fall back to screen 1")
+                try require(UserDefaults.standard.string(forKey: "petDisplayUUID") == missing, "Fallback replaced display preference")
+                _ = try invoke("plugin:window|hide", [:], "main")
+                displayConfigurationChanged()
+                try require(!window.isVisible, "Fallback revealed a manually hidden pet")
+                if let last = screens.last, let uuid = last.petDisplayUUID {
+                    rememberDisplay(uuid)
+                    let disconnected = screens.filter { $0.petDisplayUUID != uuid }
+                    try require(petDisplay(in: disconnected) == disconnected.first, "Incorrect fallback order")
+                    try require(petDisplay(in: screens) == last, "Reconnected preferred display was not restored")
+                    try require(petDisplay(in: []) == nil, "Empty display list selected a screen")
+                }
+                verified.append("missing display uses screen 1; manual visibility and preferred display survive disconnection")
+            }
+            if screens.count == 2, let window = windows["main"], let previous = petDisplay(in: screens),
                let panel = views["panel"] {
                 let click: Any = try await withCheckedThrowingContinuation { continuation in
                     panel.callAsyncJavaScript("const button=document.querySelector('.btn-screen'); button?.click(); return !!button",
@@ -1164,8 +1197,8 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
                         try await settle()
                     }
                 }
-                try await waitForDisplay { self.chosenDisplay?.petDisplayUUID != previous.petDisplayUUID }
-                guard let selected = chosenDisplay else { throw CocoaError(.coderValueNotFound) }
+                try await waitForDisplay { self.preferredDisplayUUID != previous.petDisplayUUID }
+                guard let selected = petDisplay(in: NSScreen.screens) else { throw CocoaError(.coderValueNotFound) }
                 try require(selected.petDisplayUUID != previous.petDisplayUUID && window.frame == selected.frame,
                             "Settings did not switch the physical display")
                 // Simulate AppKit changing the window's frame. The selection must survive.
@@ -1175,8 +1208,8 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
                             "Display reconfiguration replaced the selected display")
                 try await Task.sleep(nanoseconds: 2_500_000_000)
                 press(109) // F10
-                try await waitForDisplay { self.chosenDisplay?.petDisplayUUID == previous.petDisplayUUID }
-                try require(window.frame == previous.frame && chosenDisplay?.petDisplayUUID == previous.petDisplayUUID,
+                try await waitForDisplay { self.preferredDisplayUUID == previous.petDisplayUUID }
+                try require(window.frame == previous.frame && preferredDisplayUUID == previous.petDisplayUUID,
                             "Bound shortcut did not switch the physical display back")
                 verified.append("settings and F10 switch physical displays; display changes retain selection")
             }
@@ -1339,7 +1372,8 @@ final class OriginalFrontend: NSObject, WKScriptMessageHandlerWithReply, WKScrip
         return url
     }
 
-    private func safeInsets(_ screen: NSScreen) -> [String: CGFloat] {
+    private func safeInsets(_ screen: NSScreen?) -> [String: CGFloat] {
+        guard let screen else { return ["left": 0, "top": 0, "right": 0, "bottom": 0] }
         let frame = screen.frame, work = screen.visibleFrame
         return ["left": max(0, work.minX-frame.minX), "top": max(0, frame.maxY-work.maxY),
                 "right": max(0, frame.maxX-work.maxX), "bottom": max(0, work.minY-frame.minY)]
