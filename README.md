@@ -2,13 +2,15 @@
   <img src="docs/images/app-icon.png" alt="Wuwa Tappo" width="96" height="96">
   <h1>Wuwa Tappo · macOS</h1>
   <p>把鸣潮桌宠带到 Mac 桌面</p>
-  <p><strong>1.0.5 · build 15</strong> · Apple Silicon · macOS 13+</p>
+  <p><strong>1.0.5 · build 16</strong> · Apple Silicon · macOS 13+</p>
   <p><a href="https://github.com/lliooly/wuwa-tappo-mac/releases/latest">下载安装包</a> · <a href="#使用说明">使用说明</a> · <a href="CHANGELOG.md">更新记录</a></p>
 </div>
 
 Wuwa Tappo macOS 是鸣潮桌宠的社区移植版。用键盘、鼠标或手柄让共鸣者在桌面上拍桌子，边玩边积累点击，开宝箱收集角色外观、配件和表情。界面沿用国服素材与布局，输入监听、菜单栏、窗口和会话存储接入 macOS。
 
 ## 1.0.5 更新
+
+- 修复联机桌宠拖动。即使 macOS 未授权全局输入监控，也能在自己的屏幕上拖动其他房间成员的桌宠。
 
 - **和朋友一起玩**。创建房间并设为公开，或随机加入公开房间。房主可以移除成员、转让房主。
 - **更快找到表情**。在背包里筛选当前角色的表情，也可以把角色、配件和表情存成预设。

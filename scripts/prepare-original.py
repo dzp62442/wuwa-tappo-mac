@@ -97,10 +97,58 @@ def prepare(resources):
     entry.write_text(staged)
     main_file = target / 'assets/index-BGIVWra7.js'
     main_text = main_file.read_text()
-    mouse_before = 'async function fu(e,t,o,l,d){'
-    if main_text.count(mouse_before) != 1:
-        raise ValueError('Original pointer dispatch patch drift')
-    main_text = main_text.replace(mouse_before, mouse_before + 'if(window.__MACOS_DIRECT_MOUSE__){let hit=Qt(o,l);if(!hit){await Jt();hit=Qt(o,l)}if(!hit||!document.elementFromPoint(hit.x,hit.y)?.closest("[data-room-cat-id]"))return;}')
+    room_drag_handlers = """let macRoomDragPointer = null;
+    function beginMacRoomDrag(member, event) {
+        if (!window.__MACOS_DIRECT_MOUSE__ || !event.isPrimary || event.button !== 0 ||
+            macRoomDragPointer !== null || !ot.value || On.value || ln.value || vo(member.id)) return;
+        const shell = event.currentTarget;
+        El(member, event.clientX, event.clientY, shell);
+        if (Tt.value !== member.id) return;
+        macRoomDragPointer = { id: event.pointerId, shell };
+        shell.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    }
+    function moveMacRoomDrag(event) {
+        if (event.pointerId === macRoomDragPointer?.id && !On.value && !Wt.value) {
+            rp(event.clientX, event.clientY);
+        }
+    }
+    function finishMacRoomDrag(event) {
+        if (event.pointerId !== macRoomDragPointer?.id) return;
+        if (event.type === "pointerup") moveMacRoomDrag(event);
+        clearMacRoomDrag();
+    }
+    function clearMacRoomDrag() {
+        macRoomDragPointer = null;
+        xl();
+        Cn(false);
+    }
+    function removeMacRoomDragShell(vnode) {
+        if (macRoomDragPointer?.shell === vnode.el) clearMacRoomDrag();
+    }
+    """
+    for before, after, reason in [
+        ('function El(e,t,o,l){', room_drag_handlers + 'function El(e,t,o,l){',
+         'Drag room members through the WebKit window without global input permission'),
+        ('"data-room-cat-ui-hidden":vo(o.id)?"true":"false",style:Ht(tp(o,l))',
+         '"data-room-cat-ui-hidden":vo(o.id)?"true":"false",style:Ht(tp(o,l)),'
+         'onPointerdown:event=>beginMacRoomDrag(o,event),onPointermove:moveMacRoomDrag,'
+         'onPointerup:finishMacRoomDrag,onPointercancel:finishMacRoomDrag,'
+         'onLostpointercapture:finishMacRoomDrag,onVnodeBeforeUnmount:removeMacRoomDragShell',
+         'Capture the drag on the selected room member until release or cancellation'),
+        ('async function fu(e,t,o,l,d){', 'async function fu(e,t,o,l,d){if(window.__MACOS_DIRECT_MOUSE__)return;',
+         'Avoid dispatching duplicate local mouse gestures from the global input monitor'),
+        ('{const t=Qt(e.payload.x,e.payload.y);t&&rp(t.x,t.y);return}',
+         '{if(!window.__MACOS_DIRECT_MOUSE__){const t=Qt(e.payload.x,e.payload.y);t&&rp(t.x,t.y)}return}',
+         'Use window pointer coordinates for room members during a macOS drag'),
+        ('await fu(t,o,xt.value,Ot.value,e.payload.memberId),xl(),await xp()',
+         'await fu(t,o,xt.value,Ot.value,e.payload.memberId),window.__MACOS_DIRECT_MOUSE__||xl(),await xp()',
+         'Leave room member drag completion to the captured pointer event on macOS'),
+    ]:
+        if main_text.count(before) != 1:
+            raise ValueError(f'Original pointer dispatch patch drift: {reason}')
+        main_text = main_text.replace(before, after)
+        patches.append({'file': main_file.name, 'reason': reason, 'before': before, 'after': after})
     reset_before = 'const Jr=new Set,Aa=new Set;'
     if main_text.count(reset_before) != 1:
         raise ValueError('Original key-state reset patch drift')
@@ -165,7 +213,6 @@ def prepare(resources):
         patches.append({'file': main_file.name, 'reason': reason, 'before': before, 'after': after})
     main_file.write_text(main_text)
     patches.append({'reason': 'Recover key state after permission loss or sleep without inventing click counts', 'file': main_file.name, 'before': reset_before})
-    patches.append({'reason': 'Use actual WK events for local controls and retain native-only remote member gestures', 'file': main_file.name, 'before': mouse_before})
 
     panel_file = target / 'assets/index-Gk2CevxF.js'
     panel_text = panel_file.read_text()
