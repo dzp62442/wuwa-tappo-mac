@@ -60,8 +60,9 @@ jobs:
           npm test
           python3 scripts/verify-original-port.py
           python3 scripts/verify-package.py
-      - name: Verify native storage
+      - name: Verify native storage and Game Mode monitoring
         if: runner.os == 'macOS'
         run: |
           python3 scripts/verify-click-store.py
           python3 scripts/verify-session-store.py
+          python3 scripts/verify-game-mode.py
