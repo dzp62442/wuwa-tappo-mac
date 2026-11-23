@@ -1,5 +1,32 @@
 import Foundation
 
+/// Advance from the start of the last successful scan, with overlap for log
+/// persistence and one-second CLI timestamp precision. Failed scans retry with
+/// backoff so a persistent error cannot start a full-history scan every tick.
+struct SystemGameModeHistoryCursor {
+    private static let overlap: TimeInterval = 10
+    private static let retryDelay: TimeInterval = 60
+    private(set) var nextStart: Date?
+    private(set) var retryAfterUptime: TimeInterval?
+
+    func scanStart(now: Date, uptime: TimeInterval) -> Date? {
+        if let retryAfterUptime, uptime < retryAfterUptime { return nil }
+        let initialStart = now.addingTimeInterval(-max(0, uptime))
+        guard let nextStart else { return initialStart }
+        // A backward wall-clock adjustment must not create an empty window.
+        return min(nextStart, now.addingTimeInterval(-Self.overlap))
+    }
+
+    mutating func finish(startedAt: Date, finishedUptime: TimeInterval, succeeded: Bool) {
+        if succeeded {
+            nextStart = startedAt.addingTimeInterval(-Self.overlap)
+            retryAfterUptime = nil
+        } else {
+            retryAfterUptime = finishedUptime + Self.retryDelay
+        }
+    }
+}
+
 /// Reads observed Game Mode transitions from the system log. Apple does not
 /// publish a subscription API for this state, so missing evidence stays unknown.
 final class SystemGameModeMonitor {
@@ -31,9 +58,15 @@ final class SystemGameModeMonitor {
     private var stream: Process?
     private var history: Process?
     private var refreshTimer: Timer?
+    private var historyCursor = SystemGameModeHistoryCursor()
     private var lastTimestamp: UInt64?
     private(set) var active: Bool?
     var onChange: (() -> Void)?
+    private let logExecutable: URL
+
+    init(logExecutable: URL = URL(fileURLWithPath: "/usr/bin/log")) {
+        self.logExecutable = logExecutable
+    }
 
     func start() {
         guard stream == nil else { return }
@@ -41,7 +74,7 @@ final class SystemGameModeMonitor {
             stream = try launch(["stream"]) { [weak self] process, entry in
                 guard self?.stream === process else { return }
                 self?.accept(entry)
-            } finished: { [weak self] process in
+            } finished: { [weak self] process, _ in
                 guard self?.stream === process else { return }
                 self?.stop()
                 self?.onChange?()
@@ -58,15 +91,22 @@ final class SystemGameModeMonitor {
 
     private func refreshFromHistory() {
         guard stream != nil, history == nil else { return }
+        let startedAt = Date()
+        guard let start = historyCursor.scanStart(now: startedAt, uptime: ProcessInfo.processInfo.systemUptime) else { return }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let boot = Date(timeIntervalSinceNow: -ProcessInfo.processInfo.systemUptime)
-        history = try? launch(["show", "--start", formatter.string(from: boot)], latestOnly: true) { [weak self] process, entry in
-            guard self?.history === process else { return }
-            self?.accept(entry)
-        } finished: { [weak self] process in
-            if self?.history === process { self?.history = nil }
+        do {
+            history = try launch(["show", "--start", formatter.string(from: start)], latestOnly: true) { [weak self] process, entry in
+                guard self?.history === process else { return }
+                self?.accept(entry)
+            } finished: { [weak self] process, succeeded in
+                guard let self, self.history === process else { return }
+                self.historyCursor.finish(startedAt: startedAt, finishedUptime: ProcessInfo.processInfo.systemUptime, succeeded: succeeded)
+                self.history = nil
+            }
+        } catch {
+            historyCursor.finish(startedAt: startedAt, finishedUptime: ProcessInfo.processInfo.systemUptime, succeeded: false)
         }
     }
 
@@ -76,6 +116,7 @@ final class SystemGameModeMonitor {
         for process in [stream, history].compactMap({ $0 }) where process.isRunning { process.terminate() }
         stream = nil
         history = nil
+        historyCursor = SystemGameModeHistoryCursor()
         lastTimestamp = nil
         active = nil
     }
@@ -91,10 +132,10 @@ final class SystemGameModeMonitor {
 
     private func launch(_ arguments: [String], latestOnly: Bool = false,
                         receive: @escaping (Process, Entry) -> Void,
-                        finished: @escaping (Process) -> Void) throws -> Process {
+                        finished: @escaping (Process, Bool) -> Void) throws -> Process {
         let process = Process()
         let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
+        process.executableURL = logExecutable
         process.arguments = arguments + ["--info", "--style", "ndjson", "--predicate", predicate]
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
@@ -121,7 +162,9 @@ final class SystemGameModeMonitor {
                 }
             }
             if let latest { DispatchQueue.main.async { receive(process, latest) } }
-            DispatchQueue.main.async { finished(process) }
+            process.waitUntilExit()
+            let succeeded = process.terminationReason == .exit && process.terminationStatus == 0
+            DispatchQueue.main.async { finished(process, succeeded) }
         }
         return process
     }

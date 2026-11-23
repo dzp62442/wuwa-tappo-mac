@@ -1,46 +1,50 @@
 <div align="center">
   <img src="docs/images/app-icon.png" alt="Wuwa Tappo" width="96" height="96">
   <h1>Wuwa Tappo · macOS</h1>
-  <p>鸣潮桌宠的非官方 Mac 适配</p>
-  <p>
-    <img src="https://img.shields.io/badge/macOS-13%2B-555555?style=flat-square" alt="macOS 13 及以上">
-    <img src="https://img.shields.io/badge/Apple_Silicon-arm64-555555?style=flat-square" alt="Apple Silicon">
-    <img src="https://img.shields.io/badge/version-1.0.4-926044?style=flat-square" alt="版本 1.0.4">
-    <a href="LICENSE"><img src="https://img.shields.io/badge/code-MIT-926044?style=flat-square" alt="原创代码采用 MIT"></a>
-  </p>
-  <p><a href="https://github.com/lliooly/wuwa-tappo-mac/releases/latest">下载安装包</a> · <a href="#使用说明">使用说明</a> · <a href="docs/开发指南.md">开发指南</a></p>
+  <p>把鸣潮桌宠带到 Mac 桌面</p>
+  <p><strong>1.0.5 · build 17</strong> · Apple Silicon · macOS 13+</p>
+  <p><a href="https://github.com/dzp62442/wuwa-tappo-mac/releases/latest">下载安装包</a> · <a href="#使用说明">使用说明</a> · <a href="CHANGELOG.md">更新记录</a></p>
 </div>
 
-让共鸣者待在 Mac 桌面上，跟着键盘、鼠标和手柄的操作拍桌子。保留 Windows CN 版的界面，支持登录、换装、开箱、合成、兑换和好友联机。
+Wuwa Tappo macOS 是鸣潮桌宠的社区移植版。用键盘、鼠标或手柄让共鸣者在桌面上拍桌子，边玩边积累点击，开宝箱收集角色外观、配件和表情。界面沿用国服素材与布局，输入监听、菜单栏、窗口和会话存储接入 macOS。
 
-当前源码版本为 **1.0.4 · build 14**，与所用 Windows CN 前端版本一致。
+## 1.0.5 更新
+
+- 修复联机桌宠拖动。即使 macOS 未授权全局输入监控，也能在自己的屏幕上拖动其他房间成员的桌宠。
+
+- **和朋友一起玩**。创建房间并设为公开，或随机加入公开房间。房主可以移除成员、转让房主。
+- **更快找到表情**。在背包里筛选当前角色的表情，也可以把角色、配件和表情存成预设。
+- **按场景调整桌宠**。在游戏模式设置中管理始终置顶与指针监控。macOS 14 及以上可选跟随系统游戏模式。
+- **重置后继续累计**。重置应用会清理本地设置和登录会话，并保留点击计数。重新登录后恢复该账号的累计值。
+
+设置页、联机和合成页使用统一的暖金色按钮样式，桌宠计数在 WebKit 中按字符复用字体缓存。各构建的完整记录见 [更新记录](CHANGELOG.md)。
 
 <p align="center">
-  <img src="docs/images/backpack.png" alt="Mac 上的背包界面" width="900">
+  <img src="docs/images/backpack.png" alt="Wuwa Tappo macOS 1.0.5 的背包界面" width="900">
 </p>
-
-<p align="center">
-  <img src="docs/images/settings.png" alt="Mac 上的设置界面" width="900">
-</p>
-
 
 ## 安装
 
-需要 **Apple Silicon Mac、macOS 13 或更新版本**。
+需要 **Apple Silicon Mac 和 macOS 13 或更新版本**。
 
-从 [Releases](https://github.com/lliooly/wuwa-tappo-mac/releases/latest) 下载 arm64 压缩包，解压后将 `Wuwa Tappo.app` 拖入「应用程序」。
+在 [GitHub Releases](https://github.com/dzp62442/wuwa-tappo-mac/releases) 下载所需版本的 arm64 ZIP，解压后把 `Wuwa Tappo.app` 拖进「应用程序」。同页提供 `SHA256SUMS.txt` 校验下载。
 
-安装包未经过 Apple 公证。若系统拦截，请先尝试打开一次，再到「系统设置 → 隐私与安全性」中选择「仍要打开」。
+安装包未经 Apple 公证。若 macOS 拦截启动，先尝试打开一次，再到「系统设置 → 隐私与安全性」选择「仍要打开」。
 
 ## 使用说明
 
-首次启动，从菜单栏的桌宠图标选择「授权输入监控…」，在「系统设置 → 隐私与安全性 → 输入监控」中启用 Wuwa Tappo，然后回到应用选择「重试监听」。系统要求重启时，退出后重新打开应用。
+- **启动并计数**。在菜单栏桌宠图标中选择「授权输入监控…」，在「系统设置 → 隐私与安全性 → 输入监控」启用 Wuwa Tappo，回到应用选择「重试监听」。输入监控用于桌宠动作与点击计数。
+- **登录和收集**。支持国服通行证及游戏 UID 登录。可以查看账号背包和图鉴，换装、收藏、保存预设、合成、兑换及联机。登录会话保存在系统钥匙串。
+- **跟随系统游戏模式**。在「设置 → 游戏模式设置」打开「跟随 macOS 游戏模式」。该功能默认关闭，需要 macOS 14 或更新版本。开启后，桌宠跟随系统状态，桌宠自身的全屏自动切换暂时停用。
+- **检查更新**。打开「设置 → 检查更新」，发现新版后可前往 GitHub Release。
 
-输入监控只用于动作和计数，不记录输入文字。账号会话保存在系统钥匙串；重新签名后，系统可能要求重新授权。可在设置中点「检查更新」，发现新版本后打开 GitHub 发布页下载。
+<p align="center">
+  <img src="docs/images/settings.png" alt="Wuwa Tappo macOS 1.0.5 的游戏模式设置" width="900">
+</p>
 
 ## 从源码构建
 
-需要 Xcode Command Line Tools、Python 3.9+ 和 Git。素材以 Git 子模块放在 `vendor/wuwa-tappo-assets/`。递归克隆会一并检出项目锁定的素材版本。
+需要 Xcode Command Line Tools、Python 3.9+ 和 Git。素材以 Git 子模块放在 `vendor/wuwa-tappo-assets/`。递归克隆会一并检出项目锁定的素材版本。首次本地构建前请按[开发指南](docs/开发指南.md#版本与签名)配置签名身份。
 
 ```sh
 git clone --recurse-submodules https://github.com/dzp62442/wuwa-tappo-mac.git
@@ -53,30 +57,8 @@ open 'dist/Wuwa Tappo.app'
 
 所需素材已打入应用包，日常运行无需保留源码或子模块。产物为 `dist/Wuwa Tappo.app` 和 `dist/Wuwa-Tappo-mac-arm64.zip`。运行测试另需 Node.js 22+，无需 `npm install`。
 
-目录结构、测试、签名和调试命令见 [开发指南](docs/开发指南.md)。选用素材前请阅读素材库的 [使用指南](https://github.com/lliooly/wuwa-tappo-assets/blob/478ae2fdf4f1308189df87a5b249cd0deb1dfb64/docs/使用指南.md)。
+## 致谢与许可
 
-## 项目文档
+感谢 [Wuwa Tappo 国服](https://download-mc-wuwatappo.kurogames-global.com/download/) 的桌宠、角色美术及界面，感谢 [wuwa-tappo-assets](https://github.com/lliooly/wuwa-tappo-assets) 的素材整理与校验。
 
-- [更新记录](CHANGELOG.md)
-- [贡献指南](CONTRIBUTING.md)
-- [验收记录](docs/最终验收结果.md)与[在线功能记录](docs/在线功能验收.md)
-- [宝箱与屏幕切换规则](docs/宝箱与跨屏原版逻辑.md)
-- [联网接口索引](docs/原版联网业务索引.md)
-- [历史设计记录](docs/superpowers/specs/README.md)
-
-## 致谢
-
-- [Wuwa Tappo（CN 国服）](https://download-mc-wuwatappo.kurogames-global.com/download/)：原版桌宠及其角色美术与界面。
-- [wuwa-tappo-assets](https://github.com/lliooly/wuwa-tappo-assets)：整理本项目使用的角色、配件、表情、界面和字体素材，保留来源与校验信息。
-- Vue、Pinia、Socket.IO 等开源项目：支撑原版前端与联机功能，完整清单见 [第三方说明](THIRD_PARTY_NOTICES.md)。
-
-## 许可
-
-本项目与库洛游戏无官方关联。原创适配代码与文档采用 [MIT](LICENSE)；官方前端、角色美术、字体和商标保留各自权利，详见 [第三方说明](THIRD_PARTY_NOTICES.md) 和 [非官方声明](DISCLAIMER.md)。
-
-
-### 跟随 macOS 游戏模式
-
-在设置的「游戏模式」下方开启「跟随 macOS 游戏模式」。系统为游戏启用或关闭游戏模式时，Tappo 会同步切换。此功能默认关闭，需要 macOS 14 或更新版本。开启后，游戏模式由系统联动管理，原有的全屏自动切换暂停。
-
-检测使用系统游戏模式日志；系统未提供明确状态时，Tappo 保持当前模式。
+本项目是社区维护的非官方移植。原创适配代码和文档采用 [MIT](LICENSE)，原作素材、字体及商标保留各自权利。参见 [第三方说明](THIRD_PARTY_NOTICES.md) 和 [非官方声明](DISCLAIMER.md)。

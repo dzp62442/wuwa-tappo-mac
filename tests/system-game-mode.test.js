@@ -3,21 +3,21 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../dist/Wuwa Tappo.app/Contents/Resources/original/assets/index-BFg5ADH5.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../dist/Wuwa Tappo.app/Contents/Resources/original/assets/index-BGIVWra7.js', import.meta.url), 'utf8');
 const start = source.indexOf('let followSystemGameMode=');
-const end = source.indexOf('async function Xc(){', start);
+const end = source.indexOf('async function su(){', start);
 assert(start >= 0 && end > start, 'Missing shipped Game Mode adapter');
 
 function fixture(gameMode) {
   const preferences = { gameMode, autoGameModeOnFullscreen: true };
   const effective = { value: gameMode };
-  const methods = vm.runInNewContext(source.slice(start, end) + ';({updateSystemGameMode,Fp,Op})', {
+  const methods = vm.runInNewContext(source.slice(start, end) + ';({updateSystemGameMode,om,nm})', {
     window: { __MACOS_SYSTEM_GAME_MODE__: { enabled: true, active: null }, addEventListener() {} },
-    tn: effective, kt: async () => {}, sr: patch => Object.assign(preferences, patch),
-    vu: () => {}, jm: () => {}, Et: () => preferences, _a: false,
+    Et: effective, kt: async () => {}, Hn: patch => Object.assign(preferences, patch),
+    Tu: () => {}, bv: () => {}, vt: () => preferences, Kr: false,
   });
   return {
-    preferences, effective, fullscreen: methods.Op, toggle: methods.Fp,
+    preferences, effective, fullscreen: methods.nm, toggle: methods.om,
     system: (active, enabled = true) => methods.updateSystemGameMode({ active, enabled }),
   };
 }

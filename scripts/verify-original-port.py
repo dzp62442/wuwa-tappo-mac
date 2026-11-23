@@ -7,7 +7,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'recovered/wuwa-tappo-cn-1.0.4/frontend'
+SOURCE = ROOT / 'recovered/wuwa-tappo-cn-1.0.5/frontend'
 STAGED = ROOT / 'dist/Wuwa Tappo.app/Contents/Resources/original'
 manifest = json.loads((STAGED / 'adapter-manifest.json').read_text())
 recovery = json.loads((SOURCE.parent / 'manifest.json').read_text())
@@ -22,9 +22,9 @@ if executable.exists():
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(chunk)
     assert digest.hexdigest() == recovery['sourceSha256'], 'Archived Windows source executable changed'
-allowed = {'index.html', 'assets/index-CM6qA69G.js', 'assets/index-BFg5ADH5.js', 'assets/index-BIzzuO5B.js', 'assets/login-6yi5hIzI.js'}
-stylesheet = 'assets/index-BbF1ZWW_.css'
-allowed.update({stylesheet, 'assets/switchDisplayMonitor-Dqub4lRn.js'})
+allowed = {'index.html', 'assets/index-BelNnexT.js', 'assets/index-BGIVWra7.js', 'assets/index-Gk2CevxF.js', 'assets/login-D7Mrat3T.js'}
+stylesheet = 'assets/index-DMZxgGaC.css'
+allowed.update({stylesheet, 'assets/switchDisplayMonitor-CKvd7TTl.js'})
 for css_path in [STAGED / stylesheet, STAGED.parent / 'panel/panel.css']:
     css = css_path.read_text()
     assert not re.search(r'url\([^)]*975MaruSC', css), f'Embedded CN font still active: {css_path.name}'

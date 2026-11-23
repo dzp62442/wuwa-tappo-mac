@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import plistlib
 import shutil
+import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,21 @@ def run(*args):
     subprocess.run(args, check=True, cwd=ROOT)
 
 
+def signing_identity():
+    # Keep the private key in Keychain. The config stores only its public fingerprint.
+    config = Path.home() / 'Library/Application Support/Wuwa Tappo Build/signing-identity'
+    identity = os.environ.get('WUWA_SIGN_IDENTITY')
+    if identity is None and config.is_file():
+        identity = config.read_text().strip()
+        if len(identity) != 40 or any(c not in '0123456789abcdefABCDEF' for c in identity):
+            raise SystemExit(f'无效的签名证书指纹：{config}')
+    if not identity:
+        raise SystemExit('请按 docs/开发指南.md 的「版本与签名」配置持久签名身份。临时测试构建可显式指定 WUWA_SIGN_IDENTITY=-。')
+    return identity
+
+
 def main():
+    identity = signing_identity()
     package = json.loads((ROOT / 'package.json').read_text())
     catalog_path = LIBRARY / 'data/catalog.json'
     if not catalog_path.is_file():
@@ -184,7 +199,25 @@ def main():
             else:
                 subprocess.run(['sips', '-z', str(pixels), str(pixels), str(icon_source), '--out', str(destination)],
                                check=True, capture_output=True)
-    run('iconutil', '-c', 'icns', str(iconset), '-o', str(RESOURCES / 'WuwaTappo.icns'))
+    icon_output = RESOURCES / 'WuwaTappo.icns'
+    result = subprocess.run(['iconutil', '-c', 'icns', str(iconset), '-o', str(icon_output)],
+                            capture_output=True)
+    if result.returncode:
+        # iconutil may fail in restricted shells. ICNS supports these PNG
+        # representations directly, including the separate Retina slots.
+        representations = [
+            (b'icp4', 16, 1), (b'ic11', 16, 2), (b'icp5', 32, 1), (b'ic12', 32, 2),
+            (b'ic07', 128, 1), (b'ic13', 128, 2), (b'ic08', 256, 1), (b'ic14', 256, 2),
+            (b'ic09', 512, 1), (b'ic10', 512, 2),
+        ]
+        chunks = bytearray()
+        for kind, size, scale in representations:
+            png = (iconset / f'icon_{size}x{size}{"@2x" if scale == 2 else ""}.png').read_bytes()
+            chunks.extend(struct.pack('>4sI', kind, 8 + len(png)))
+            chunks.extend(png)
+        icon_output.write_bytes(struct.pack('>4sI', b'icns', 8 + len(chunks)) + chunks)
+        subprocess.run(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', str(icon_output)],
+                       capture_output=True, check=True)
     with (CONTENTS / 'Info.plist').open('wb') as output:
         plistlib.dump({
             'CFBundleName': 'Wuwa Tappo', 'CFBundleDisplayName': 'Wuwa Tappo',
@@ -202,8 +235,6 @@ def main():
         '-module-cache-path', str(cache), '-framework', 'AppKit', '-framework', 'JavaScriptCore', '-framework', 'WebKit',
         *[str(p) for p in sorted((ROOT / 'native').glob('*.swift'))],
         '-o', str(CONTENTS / 'MacOS/WuwaTappo'))
-    # A developer identity can be supplied to keep a stable identity across local rebuilds.
-    identity = os.environ.get('WUWA_SIGN_IDENTITY', '-')
     run('codesign', '--force', '--sign', identity, '--identifier', 'io.lliooly.wuwa-tappo.mac', str(APP))
     run('codesign', '--verify', '--strict', str(APP))
     archive = ROOT / 'dist/Wuwa-Tappo-mac-arm64.zip'

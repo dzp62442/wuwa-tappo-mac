@@ -23,7 +23,7 @@ enum ReleaseUpdate {
         case unexpectedResponse, invalidRelease, missingPackage
     }
 
-    private static let repository = "lliooly/wuwa-tappo-mac"
+    private static let repository = "dzp62442/wuwa-tappo-mac"
 
     static func check(currentVersion: String) async throws -> Available? {
         let configuration = URLSessionConfiguration.ephemeral
