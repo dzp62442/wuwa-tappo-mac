@@ -2,7 +2,7 @@
   <img src="docs/images/app-icon.png" alt="Wuwa Tappo" width="96" height="96">
   <h1>Wuwa Tappo · macOS</h1>
   <p>把鸣潮桌宠带到 Mac 桌面</p>
-  <p><strong>1.0.5 · build 17</strong> · Apple Silicon · macOS 13+</p>
+  <p><strong>1.0.5 · build 18</strong> · Apple Silicon · macOS 13+</p>
   <p><a href="https://github.com/dzp62442/wuwa-tappo-mac/releases/latest">下载安装包</a> · <a href="#使用说明">使用说明</a> · <a href="CHANGELOG.md">更新记录</a></p>
 </div>
 
@@ -10,6 +10,8 @@ Wuwa Tappo macOS 是鸣潮桌宠的社区移植版。用键盘、鼠标或手柄
 
 ## 1.0.5 更新
 
+- **断网恢复后可以重新登录**。网络恢复时，登录窗口会重新检查连接，长时间运行后也能继续打开通行证登录。
+- **缩短开宝箱的等待**。背包查询较慢时，开箱动画结束就发送领取请求，随后在后台刷新背包。
 - **输入监控授权可随更新保留**。从本版起，发布包使用固定证书签名。同一签名的版本覆盖安装后，macOS 可沿用已授予的输入监控权限。
 - 修复联机桌宠拖动。即使 macOS 未授权全局输入监控，也能在自己的屏幕上拖动其他房间成员的桌宠。
 - **和朋友一起玩**。创建房间并设为公开，或随机加入公开房间。房主可以移除成员、转让房主。
@@ -28,6 +30,8 @@ Wuwa Tappo macOS 是鸣潮桌宠的社区移植版。用键盘、鼠标或手柄
 需要 **Apple Silicon Mac 和 macOS 13 或更新版本**。
 
 从 [1.0.5 发布页](https://github.com/dzp62442/wuwa-tappo-mac/releases/tag/v1.0.5) 下载 `Wuwa-Tappo-mac-1.0.5-arm64.zip`，退出旧版，解压后把 `Wuwa Tappo.app` 拖进「应用程序」。将同页的 `SHA256SUMS.txt` 与 ZIP 放在同一目录，运行 `shasum -a 256 -c SHA256SUMS.txt` 可校验下载。
+
+已安装 1.0.5 build 17 的用户请从发布页下载 build 18 并覆盖安装。build 17 的应用内更新只比较版本号，同为 1.0.5 时不会提示升级。
 
 从此前公开发布的 1.0.4 build 14 升级，首次迁移到新签名时需重新授权一次。如果「输入监控」已开启但桌宠仍未计数，可按[开发指南](docs/开发指南.md#更新后验证输入监控)恢复授权。
 
