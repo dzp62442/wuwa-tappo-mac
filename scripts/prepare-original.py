@@ -81,6 +81,26 @@ def prepare(resources):
     network_start = staged[staged.index('function startNetworkMonitoring(){'):staged.index('function stopNetworkMonitoring(){')]
     replace(network_start, network_start.replace('function startNetworkMonitoring(){', 'function startNetworkMonitoring(){if(!window.__MACOS_ONLINE__){if(!started){started=true;setSnapshot({status:"offline",reason:"macos-local-only",retryAttempt:0})}return}'),
             'Preserve original network monitor with explicit offline audit mode')
+    # Native path changes can cancel the only retry just after a failed probe.
+    # Apply the minimum interval to its replacement without dropping that probe.
+    schedule = staged[staged.index('function scheduleProbe('):staged.index('async function runHealthcheck(')]
+    replace(schedule, '''function scheduleProbe(delay, trigger) {
+        if (!started || retryTimer !== undefined || (delay === 0 && probeController)) return;
+        if (delay === 0) {
+            const elapsed = performance.now() - lastProbeStartedAt;
+            delay = Math.max(0, IMMEDIATE_PROBE_DEDUPE_MS - elapsed);
+        }
+        retryTimer = window.setTimeout(() => {
+            retryTimer = undefined;
+            probeNetwork(trigger);
+        }, delay);
+    }''', 'Keep a pending health check when connectivity returns within the minimum probe interval')
+    replace('lastProbeStartedAt=0,', 'lastProbeStartedAt=-Infinity,',
+            'Allow the first network probe to run immediately')
+    replace('lastProbeStartedAt=Date.now();', 'lastProbeStartedAt=performance.now();',
+            'Measure spacing between probes with a monotonic clock')
+    replace('const t=Math.max(0,IMMEDIATE_PROBE_DEDUPE_MS-(Date.now()-lastProbeStartedAt));scheduleProbe(t,e)',
+            'scheduleProbe(0,e)', 'Use the same probe schedule for browser and native path changes')
     # Keep the existing network monitor; the new Windows collector can also be
     # called directly by request error handlers, so disable its entry point.
     diagnostics = staged[staged.index('function requestNetworkDiagnostics('):
@@ -152,7 +172,68 @@ def prepare(resources):
         if (macRoomDragPointer?.shell === vnode.el) clearMacRoomDrag();
     }
     """
+    bag_loader = main_text[main_text.index('let ne=null;async function ee(){if(!A.isLoggedIn)'):
+                           main_text.index('let de=null;async function $e(){return de||')]
     for before, after, reason in [
+        (bag_loader, '''let ne = null, bagSession = null;
+        async function ee() {
+            if (!A.isLoggedIn) { ne = null; bagSession = null; B.value = false; Q(); return; }
+            const session = tn("infoToken");
+            if (ne && bagSession === session) return ne;
+            bagSession = session;
+            x.value = true;
+            const isCurrent = () => A.isLoggedIn && tn("infoToken") === session;
+            const read = (async () => {
+                try {
+                    const result = await Sv();
+                    if (isCurrent()) { C.value = Cv(ct(result)); B.value = false; }
+                } catch (error) {
+                    if (!isCurrent()) return;
+                    B.value = true;
+                    if (!ps(error)) console.warn("[bagList] load failed", error);
+                }
+            })();
+            ne = read;
+            try { await read; }
+            finally { if (ne === read) { ne = null; x.value = false; } }
+        }''', 'Only share and apply inventory reads from the active session'),
+        ('const I=await(async()=>{await ee();const ae=await rv(',
+         '''const chestSession = tn("infoToken");
+         const bagBeforeClaim = await Promise.race([
+             ee().then(() => B.value ? null : C.value),
+             d.then(() => null)
+         ]);
+         if (!chestSession || tn("infoToken") !== chestSession) return;
+         const I=await(async()=>{const ae=await rv(''',
+         'Bound the read-only pre-claim inventory lookup by the existing chest animation'),
+        ('re=ct(ae);Wp(e);const Se=', '''re=ct(ae);
+         if (tn("infoToken") !== chestSession) return {ok:false, reason:"session_changed"};
+         Wp(e);const Se=''',
+         'Keep a claim response from changing the balance of a replacement session'),
+        ('if(await d,!I.ok){if(I.reason==="click_consume")',
+         'await d;if(tn("infoToken")!==chestSession||I.reason==="session_changed")return;if(!I.ok){if(I.reason==="click_consume")',
+         'Present a chest result only to the account that opened it'),
+        ('await Jp(I.assetType,I.assetName,I.data.rarity_type,I.data.asset_id)',
+         'await Jp(I.assetType,I.assetName,I.data.rarity_type,I.data.asset_id,bagBeforeClaim)',
+         'Pass the inventory seen before claiming to the reward notification'),
+        ('async function Jp(e,t,o,l){', 'async function Jp(e,t,o,l,bagBeforeClaim){',
+         'Keep reward presentation independent of concurrent inventory refreshes'),
+        ('const I=Zp(l,_,d),K=Pu(', 'const I=bagBeforeClaim ? Zp(l,_,d,bagBeforeClaim) : null,K=Pu(',
+         'Only classify rewards when pre-claim inventory is available'),
+        ('function Zp(e,t,o){', 'function Zp(e,t,o,bagBeforeClaim){',
+         'Use the pre-claim snapshot for ownership checks'),
+        ('!Xu(l)&&C.value.some(K=>K.asset_id===l', '!Xu(l)&&bagBeforeClaim.some(K=>K.asset_id===l',
+         'Check reward ownership by asset ID in the snapshot'),
+        ('return d?C.value.some(I=>{if((I.quantity??0)<=0)', 'return d?bagBeforeClaim.some(I=>{if((I.quantity??0)<=0)',
+         'Check reward ownership by asset name in the same snapshot'),
+        ('function Qp(e){if(e.isDuplicate)', 'function Qp(e){if(e.isDuplicate===null)return "";if(e.isDuplicate)',
+         'Omit the ownership hint when inventory could not be checked in time'),
+        ('const K=Ae();await Pn(K)', '''void (async () => {
+             // An in-flight read may have started before the reward was issued.
+             if (ne) await ne;
+             if (tn("infoToken") === chestSession) await Pn(Ae());
+         })().catch(error => console.warn("[bagList] post-claim refresh failed", error))''',
+         'Refresh inventory after the claim without holding the chest interaction lock'),
         ('function El(e,t,o,l){', room_drag_handlers + 'function El(e,t,o,l){',
          'Drag room members through the WebKit window without global input permission'),
         ('"data-room-cat-ui-hidden":vo(o.id)?"true":"false",style:Ht(tp(o,l))',
